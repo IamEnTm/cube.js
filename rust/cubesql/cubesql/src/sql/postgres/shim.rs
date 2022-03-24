@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    hash::Hash,
     io::{Error, ErrorKind},
     sync::Arc,
 };
@@ -22,10 +23,17 @@ use super::{
     protocol::{self, FrontendMessage, SSL_REQUEST_PROTOCOL},
 };
 
+#[derive(Debug)]
+pub struct PreparedStatements {
+    query: String,
+}
+
 pub struct AsyncPostgresShim {
     socket: TcpStream,
     #[allow(unused)]
     parameters: HashMap<String, String>,
+    statements: HashMap<String, PreparedStatements>,
+    // Shared
     session: Arc<Session>,
 }
 
@@ -41,6 +49,7 @@ impl AsyncPostgresShim {
         let mut shim = Self {
             socket,
             parameters: HashMap::new(),
+            statements: HashMap::new(),
             session,
         };
         match shim.run().await {
@@ -82,7 +91,11 @@ impl AsyncPostgresShim {
 
         loop {
             match buffer::read_message(&mut self.socket).await? {
-                FrontendMessage::Query(query) => self.process_query(query).await?,
+                FrontendMessage::Query(body) => self.process_query(body).await?,
+                FrontendMessage::Parse(body) => self.parse(body).await?,
+                FrontendMessage::Bind(body) => self.bind(body).await?,
+                FrontendMessage::Execute(body) => self.execute(body).await?,
+                FrontendMessage::Sync => self.sync().await?,
                 FrontendMessage::Terminate => return Ok(()),
                 command_id => {
                     return Err(Error::new(
@@ -102,7 +115,7 @@ impl AsyncPostgresShim {
     }
 
     pub async fn process_startup_message(&mut self) -> Result<StartupState, Error> {
-        let mut buffer = buffer::read_contents(&mut self.socket).await?;
+        let mut buffer = buffer::read_contents(&mut self.socket, 0).await?;
 
         let startup_message = protocol::StartupMessage::from(&mut buffer).await?;
 
@@ -212,6 +225,39 @@ impl AsyncPostgresShim {
             protocol::TransactionStatus::Idle,
         ))
         .await?;
+
+        Ok(())
+    }
+
+    pub async fn sync(&mut self) -> Result<(), Error> {
+        self.write(protocol::ReadyForQuery::new(
+            protocol::TransactionStatus::Idle,
+        ))
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn execute(&mut self, execute: protocol::Execute) -> Result<(), Error> {
+        Ok(())
+    }
+
+    pub async fn bind(&mut self, bind: protocol::Bind) -> Result<(), Error> {
+        let source_statement = self
+            .statements
+            .get(&bind.statement)
+            .ok_or_else(|| Error::new(ErrorKind::Other, "Unknown statement"))?;
+
+        self.write(protocol::BindComplete::new()).await?;
+
+        Ok(())
+    }
+
+    pub async fn parse(&mut self, parse: protocol::Parse) -> Result<(), Error> {
+        self.statements
+            .insert(parse.name, PreparedStatements { query: parse.query });
+
+        self.write(protocol::ParseComplete::new()).await?;
 
         Ok(())
     }
