@@ -12,16 +12,19 @@ use crate::{
     sql::{session::DatabaseProtocol, SessionManager, SessionState},
 };
 
-use super::information_schema::mysql::{
-    collations::InfoSchemaCollationsProvider as MySqlSchemaCollationsProvider,
-    columns::InfoSchemaColumnsProvider as MySqlSchemaColumnsProvider,
-    key_column_usage::InfoSchemaKeyColumnUsageProvider as MySqlSchemaKeyColumnUsageProvider,
-    processlist::InfoSchemaProcesslistProvider as MySqlSchemaProcesslistProvider,
-    referential_constraints::InfoSchemaReferentialConstraintsProvider as MySqlSchemaReferentialConstraintsProvider,
-    schemata::InfoSchemaSchemataProvider as MySqlSchemaSchemataProvider,
-    statistics::InfoSchemaStatisticsProvider as MySqlSchemaStatisticsProvider,
-    tables::InfoSchemaTableProvider as MySqlSchemaTableProvider,
-    variables::PerfSchemaVariablesProvider as MySqlPerfSchemaVariablesProvider,
+use super::information_schema::{
+    mysql::{
+        collations::InfoSchemaCollationsProvider as MySqlSchemaCollationsProvider,
+        columns::InfoSchemaColumnsProvider as MySqlSchemaColumnsProvider,
+        key_column_usage::InfoSchemaKeyColumnUsageProvider as MySqlSchemaKeyColumnUsageProvider,
+        processlist::InfoSchemaProcesslistProvider as MySqlSchemaProcesslistProvider,
+        referential_constraints::InfoSchemaReferentialConstraintsProvider as MySqlSchemaReferentialConstraintsProvider,
+        schemata::InfoSchemaSchemataProvider as MySqlSchemaSchemataProvider,
+        statistics::InfoSchemaStatisticsProvider as MySqlSchemaStatisticsProvider,
+        tables::InfoSchemaTableProvider as MySqlSchemaTableProvider,
+        variables::PerfSchemaVariablesProvider as MySqlPerfSchemaVariablesProvider,
+    },
+    postgres::pg_settings::PgCatalogSettingsProvider,
 };
 
 use super::information_schema::postgres::{
@@ -178,6 +181,15 @@ impl DatabaseProtocol {
 
         if tp.eq_ignore_ascii_case("pg_catalog.pg_tables") {
             return Some(Arc::new(PgCatalogTableProvider::new(&context.meta.cubes)));
+        }
+
+        if tp.eq_ignore_ascii_case("pg_catalog.pg_settings") {
+            return Some(Arc::new(PgCatalogSettingsProvider::new(
+                context
+                    .sessions
+                    .server
+                    .all_variables(context.session_state.protocol.clone()),
+            )));
         }
 
         None
