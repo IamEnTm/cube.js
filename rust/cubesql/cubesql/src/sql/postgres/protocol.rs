@@ -830,7 +830,7 @@ mod tests {
 
         buffer::write_message(&mut cursor, ParseComplete {}).await?;
 
-        assert_eq!(cursor.get_ref()[0..], vec![49, 0, 0, 0, 0]);
+        assert_eq!(cursor.get_ref()[0..], vec![49, 0, 0, 0, 4]);
 
         Ok(())
     }
