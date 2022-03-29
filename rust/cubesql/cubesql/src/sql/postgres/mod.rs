@@ -1,4 +1,5 @@
 pub(crate) mod buffer;
+pub(crate) mod portal;
 pub(crate) mod protocol;
 pub(crate) mod service;
 pub(crate) mod shim;

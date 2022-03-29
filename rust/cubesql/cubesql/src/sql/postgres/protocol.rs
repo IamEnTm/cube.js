@@ -769,7 +769,8 @@ mod tests {
                     body,
                     PasswordMessage {
                         password: "test".to_string()
-                    },                )
+                    },
+                )
             }
             _ => panic!("Wrong message, must be Describe"),
         }
@@ -792,7 +793,10 @@ mod tests {
             FrontendMessage::Execute(exec) => {
                 assert_eq!(
                     exec,
-                    Execute { portal: "".to_string(), max_rows: 0 },
+                    Execute {
+                        portal: "".to_string(),
+                        max_rows: 0
+                    },
                 )
             }
             _ => panic!("Wrong message, must be Describe"),
@@ -824,14 +828,9 @@ mod tests {
     async fn test_frontend_message_write_complete_parse() -> Result<(), CubeError> {
         let mut cursor = Cursor::new(vec![]);
 
-        buffer::write_message(&mut cursor, ParseComplete {
-            
-        }).await?;
+        buffer::write_message(&mut cursor, ParseComplete {}).await?;
 
-        assert_eq!(
-            cursor.get_ref()[0..],
-            vec![49, 0, 0, 0, 0]
-        );
+        assert_eq!(cursor.get_ref()[0..], vec![49, 0, 0, 0, 0]);
 
         Ok(())
     }

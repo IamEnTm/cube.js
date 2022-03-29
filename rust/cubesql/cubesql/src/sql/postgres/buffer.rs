@@ -51,7 +51,11 @@ pub async fn read_contents<Reader: AsyncReadExt + Unpin>(
         ));
     }
 
-    trace!("[pg-wire] Receive package {:X?} with length {}", message_tag, length);
+    trace!(
+        "[pg-wire] Receive package {:X?} with length {}",
+        message_tag,
+        length
+    );
 
     let length = usize::try_from(length - 4).map_err(|_| {
         Error::new(

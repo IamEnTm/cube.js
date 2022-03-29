@@ -7,12 +7,14 @@ use std::{
 
 use datafusion::{dataframe::DataFrame, execution::dataframe_impl::DataFrameImpl};
 use log::{debug, error};
+use sqlparser::ast;
 use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 use crate::{
-    compile::convert_sql_to_cube_query,
+    compile::{convert_sql_to_cube_query, parser::parse_sql_to_statement},
     sql::{
         dataframe::{batch_to_dataframe, TableValue},
+        session::DatabaseProtocol,
         AuthContext, QueryResponse, Session,
     },
     CubeError,
@@ -24,15 +26,25 @@ use super::{
 };
 
 #[derive(Debug)]
-pub struct PreparedStatements {
-    query: String,
+pub struct Portal {}
+
+impl Portal {
+    async fn fetch(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PreparedStatement {
+    query: ast::Statement,
 }
 
 pub struct AsyncPostgresShim {
     socket: TcpStream,
     #[allow(unused)]
     parameters: HashMap<String, String>,
-    statements: HashMap<String, PreparedStatements>,
+    statements: HashMap<String, PreparedStatement>,
+    portals: HashMap<String, Portal>,
     // Shared
     session: Arc<Session>,
 }
@@ -49,6 +61,7 @@ impl AsyncPostgresShim {
         let mut shim = Self {
             socket,
             parameters: HashMap::new(),
+            portals: HashMap::new(),
             statements: HashMap::new(),
             session,
         };
@@ -239,14 +252,46 @@ impl AsyncPostgresShim {
     }
 
     pub async fn execute(&mut self, execute: protocol::Execute) -> Result<(), Error> {
+        let portal = self.portals.get_mut(&execute.portal);
+        match portal {
+            Some(portal) => {
+                panic!("Unable to execute portal");
+            }
+            None => {
+                self.write(protocol::ReadyForQuery::new(
+                    protocol::TransactionStatus::Idle,
+                ))
+                .await?;
+            }
+        }
+
         Ok(())
     }
 
     pub async fn bind(&mut self, bind: protocol::Bind) -> Result<(), Error> {
-        let source_statement = self
+        let statement = self
             .statements
             .get(&bind.statement)
             .ok_or_else(|| Error::new(ErrorKind::Other, "Unknown statement"))?;
+
+        // let meta = self
+        //     .session
+        //     .server
+        //     .transport
+        //     .meta(self.auth_context().unwrap())
+        //     .await.unwrap();
+
+        // let plan = convert_sql_to_cube_query(
+        //     &statement.query,
+        //     meta,
+        //     self.session.clone()
+        // ).unwrap();
+
+        let portal = Portal {
+            // plan
+        };
+
+        self.portals.insert(bind.portal, portal);
 
         self.write(protocol::BindComplete::new()).await?;
 
@@ -254,8 +299,10 @@ impl AsyncPostgresShim {
     }
 
     pub async fn parse(&mut self, parse: protocol::Parse) -> Result<(), Error> {
+        let query = parse_sql_to_statement(&parse.query, DatabaseProtocol::PostgreSQL).unwrap();
+
         self.statements
-            .insert(parse.name, PreparedStatements { query: parse.query });
+            .insert(parse.name, PreparedStatement { query });
 
         self.write(protocol::ParseComplete::new()).await?;
 
@@ -317,10 +364,12 @@ impl AsyncPostgresShim {
                 .await?;
             }
         }
+
         self.write(protocol::ReadyForQuery::new(
             protocol::TransactionStatus::Idle,
         ))
         .await?;
+
         Ok(())
     }
 
