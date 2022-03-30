@@ -8,8 +8,9 @@ pub struct MetaContext {
 
 #[derive(Debug, Clone)]
 pub struct CubeMetaTable {
-    oid: u32,
-    name: String,
+    pub oid: u32,
+    pub name: String,
+    pub number_of_columns: usize,
 }
 
 impl MetaContext {
@@ -23,6 +24,7 @@ impl MetaContext {
                 CubeMetaTable {
                     oid,
                     name: cube.name.clone(),
+                    number_of_columns: cube.dimensions.len(),
                 }
             })
             .collect();

@@ -12,16 +12,19 @@ use crate::{
     sql::{session::DatabaseProtocol, SessionManager, SessionState},
 };
 
-use super::information_schema::mysql::{
-    collations::InfoSchemaCollationsProvider as MySqlSchemaCollationsProvider,
-    columns::InfoSchemaColumnsProvider as MySqlSchemaColumnsProvider,
-    key_column_usage::InfoSchemaKeyColumnUsageProvider as MySqlSchemaKeyColumnUsageProvider,
-    processlist::InfoSchemaProcesslistProvider as MySqlSchemaProcesslistProvider,
-    referential_constraints::InfoSchemaReferentialConstraintsProvider as MySqlSchemaReferentialConstraintsProvider,
-    schemata::InfoSchemaSchemataProvider as MySqlSchemaSchemataProvider,
-    statistics::InfoSchemaStatisticsProvider as MySqlSchemaStatisticsProvider,
-    tables::InfoSchemaTableProvider as MySqlSchemaTableProvider,
-    variables::PerfSchemaVariablesProvider as MySqlPerfSchemaVariablesProvider,
+use super::information_schema::{
+    mysql::{
+        collations::InfoSchemaCollationsProvider as MySqlSchemaCollationsProvider,
+        columns::InfoSchemaColumnsProvider as MySqlSchemaColumnsProvider,
+        key_column_usage::InfoSchemaKeyColumnUsageProvider as MySqlSchemaKeyColumnUsageProvider,
+        processlist::InfoSchemaProcesslistProvider as MySqlSchemaProcesslistProvider,
+        referential_constraints::InfoSchemaReferentialConstraintsProvider as MySqlSchemaReferentialConstraintsProvider,
+        schemata::InfoSchemaSchemataProvider as MySqlSchemaSchemataProvider,
+        statistics::InfoSchemaStatisticsProvider as MySqlSchemaStatisticsProvider,
+        tables::InfoSchemaTableProvider as MySqlSchemaTableProvider,
+        variables::PerfSchemaVariablesProvider as MySqlPerfSchemaVariablesProvider,
+    },
+    postgres::PgCatalogClassProvider,
 };
 
 use super::information_schema::postgres::{
@@ -258,6 +261,8 @@ impl DatabaseProtocol {
                 "pg_catalog.pg_namespace".to_string()
             } else if let Some(_) = any.downcast_ref::<PgCatalogRangeProvider>() {
                 "pg_catalog.pg_range".to_string()
+            } else if let Some(_) = any.downcast_ref::<PgCatalogClassProvider>() {
+                "pg_catalog.pg_class".to_string()
             } else {
                 return Err(CubeError::internal(format!(
                     "Unknown table provider with schema: {:?}",
@@ -298,6 +303,10 @@ impl DatabaseProtocol {
 
         if tp.eq_ignore_ascii_case("pg_catalog.pg_range") {
             return Some(Arc::new(PgCatalogRangeProvider::new()));
+        }
+
+        if tp.eq_ignore_ascii_case("pg_catalog.pg_class") {
+            return Some(Arc::new(PgCatalogClassProvider::new(&context.meta.tables)));
         }
 
         None

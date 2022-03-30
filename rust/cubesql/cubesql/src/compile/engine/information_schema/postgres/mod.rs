@@ -3,12 +3,14 @@ pub mod ext;
 // information schema
 pub mod tables;
 // pg_catalog
+mod pg_class;
 mod pg_namespace;
 mod pg_range;
 mod pg_tables;
 mod pg_type;
 
 use super::utils;
+pub use pg_class::*;
 pub use pg_namespace::*;
 pub use pg_range::*;
 pub use pg_tables::*;
